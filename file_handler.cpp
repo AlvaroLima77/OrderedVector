@@ -68,8 +68,11 @@ int main(int argc, char* argv[]) {
                 std::cerr << "line " << line_count << ": " << line << std::endl;
                 return EXIT_FAILURE;
             }
-
-            output_file << v << std::endl;
+            for (const auto& item : v) {
+                if (item) 
+                    output_file << item.value() << ' ';
+            }
+            output_file << std::endl;
         } else {
             if (!tokens.empty()) {
                 std::cerr << "Undefined command " << tokens[0] << std::endl;

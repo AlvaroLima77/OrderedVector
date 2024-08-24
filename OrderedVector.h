@@ -6,23 +6,23 @@
 #include <ostream>
 #include <vector>
 
-template <typename T, typename Comparator = std::less<T>, uint32_t block_size = 8>
+template <typename T, typename Comparator = std::less<T>, uint32_t leaf_size = 8>
 class OrderedVector {
 public:
-    inline OrderedVector() : items(block_size * 2) {}
+    inline OrderedVector() : items(leaf_size * 2) {}
 
     inline void push(const T& t) {
         int i = index_of(t);
         if (items[i]) {
-            if (bigger_than(t, items[i].value()))
+            if (greater(t, items[i].value()))
                 shifted_left(i) || (items[++i] && shifted_right(i));
             else
                 shifted_right(i) || (items[--i] && shifted_left(i));
         }
         items[i] = t;
 
-        int block_begin = (i / block_size) * block_size;
-        int block_end = block_begin + block_size;
+        int block_begin = (i / leaf_size) * leaf_size;
+        int block_end = block_begin + leaf_size;
         scan(block_begin, block_end, tree_height());
     }
 
@@ -32,14 +32,14 @@ public:
             return;
 
         items[i].reset();
-        int block_begin = (i / block_size) * block_size;
-        int block_end = block_begin + block_size;
+        int block_begin = (i / leaf_size) * leaf_size;
+        int block_end = block_begin + leaf_size;
         scan(block_begin, block_end, tree_height());
     }
 
     inline const T& successor(const T& t) const {
         int i = index_of(t);
-        for (;i < items.size() && (!items[i] || less_than_equal(items[i].value(), t)); ++i);
+        for (;i < items.size() && (!items[i] || less_equal(items[i].value(), t)); ++i);
         if (i >= items.size())
             return t;
 
@@ -58,9 +58,9 @@ public:
                     return low;
             }
 
-            if (less_than(items[mid].value(), t))
+            if (less(items[mid].value(), t))
                 low = mid + 1;
-            else if (bigger_than(items[mid].value(), t))
+            else if (greater(items[mid].value(), t))
                 high = mid - 1;
             else
                 return mid;
@@ -69,15 +69,11 @@ public:
         return low >= items.size() ? low - 1: low;
     }
 
-    friend inline std::ostream& operator<<(std::ostream& os, const OrderedVector& ov) {
-        for (const auto& item : ov.items) {
-            if (item)
-                os << item.value() << " ";
-        }
-        return os;
-    }
+    using const_iterator = typename std::vector<std::optional<T>>::const_iterator;
+    inline const_iterator begin() const { return items.begin(); }
+    inline const_iterator end() const { return items.end(); }
 
-public:
+private:
     std::vector<std::optional<T>> items;
 
 private:
@@ -132,7 +128,7 @@ private:
         }
     }
 
-    inline int tree_height() const { return std::log2(items.size() / block_size); }
+    inline int tree_height() const { return std::log2(items.size() / leaf_size); }
 
     inline int count_items(int begin, int end) const {
         return std::count_if(items.begin() + begin, items.begin() + end, [](auto&& item) {
@@ -169,20 +165,17 @@ private:
         *upper = 0.75f + 0.25f * ((float)depth / tree_height());
     }
 
-    inline bool less_than(const T& a, const T& b) const {
+    inline bool less(const T& a, const T& b) const {
         return Comparator()(a, b);
     }
-
-    inline bool less_than_equal(const T& a, const T& b) const {
-        return less_than(a, b) || equal(a, b);
+    inline bool greater(const T& a, const T& b) const {
+        return less(b, a);
     }
-
-    inline bool bigger_than(const T& a, const T& b) const {
-        return less_than(b, a);
-    }
-
     inline bool equal(const T& a, const T& b) const {
-        return !less_than(a, b) && !bigger_than(a, b);
+        return !less(a, b) && !greater(a, b);
+    }
+    inline bool less_equal(const T& a, const T& b) const {
+        return less(a, b) || equal(a, b);
     }
 };
 
