@@ -6,7 +6,7 @@
 #include <ostream>
 #include <vector>
 
-template <typename T, uint32_t block_size = 8>
+template <typename T, typename Comparator = std::less<T>, uint32_t block_size = 8>
 class OrderedVector {
 public:
     inline OrderedVector() : items(block_size * 2) {}
@@ -14,25 +14,24 @@ public:
     inline void push(const T& t) {
         int i = index_of(t);
         if (items[i]) {
-            if (t > items[i].value())
+            if (bigger_than(t, items[i].value()))
                 shifted_left(i) || (items[++i] && shifted_right(i));
             else
                 shifted_right(i) || (items[--i] && shifted_left(i));
         }
         items[i] = t;
 
-        int block_index = i / block_size;
-        int block_begin = block_index * block_size;
+        int block_begin = (i / block_size) * block_size;
         int block_end = block_begin + block_size;
         scan(block_begin, block_end, tree_height());
     }
 
     inline void remove(const T& t) {
         int i = index_of(t);
-        if (i >= items.size() || (items[i] && items[i].value() != t))
+        if (items[i] && !equal(items[i].value(), t))
             return;
 
-        items[i] = std::nullopt;
+        items[i].reset();
         int block_begin = (i / block_size) * block_size;
         int block_end = block_begin + block_size;
         scan(block_begin, block_end, tree_height());
@@ -40,7 +39,7 @@ public:
 
     inline const T& successor(const T& t) const {
         int i = index_of(t);
-        for (; i < items.size() && (!items[i] || items[i].value() <= t); ++i);
+        for (;i < items.size() && (!items[i] || less_than_equal(items[i].value(), t)); ++i);
         if (i >= items.size())
             return t;
 
@@ -59,9 +58,9 @@ public:
                     return low;
             }
 
-            if (items[mid].value() < t)
+            if (less_than(items[mid].value(), t))
                 low = mid + 1;
-            else if (items[mid].value() > t)
+            else if (bigger_than(items[mid].value(), t))
                 high = mid - 1;
             else
                 return mid;
@@ -78,7 +77,7 @@ public:
         return os;
     }
 
-private:
+public:
     std::vector<std::optional<T>> items;
 
 private:
@@ -107,7 +106,7 @@ private:
 
         int depth_block_size = items.size() / std::pow(2, depth);
         bool left_child = (begin / depth_block_size) % 2 == 0;
-        int block_begin = left_child ? begin : begin - (begin == 0 ? 0 : depth_block_size);
+        int block_begin = left_child ? begin : begin - depth_block_size;
         int block_end = left_child ? end + depth_block_size : end;
         scan(block_begin, block_end, depth - 1);
     }
@@ -116,7 +115,7 @@ private:
         std::vector<std::optional<T>> buffer;
         for (int i = begin; i < end; ++i) {
             if (items[i]) {
-                buffer.push_back(items[i]);
+                buffer.push_back(std::move(items[i]));
                 items[i] = std::nullopt;
             }
         }
@@ -125,9 +124,9 @@ private:
         int new_density = (length + buffer.size() - 1) / buffer.size();
         int remainder = buffer.size() - length / new_density;
         for (int i = begin, b_iter = 0; i < end && b_iter < buffer.size(); i += new_density) {
-            items[i] = buffer[b_iter++];
+            items[i] = std::move(buffer[b_iter++]);
             if (remainder > 0) {
-                items[i + 1] = buffer[b_iter++];
+                items[i + 1] = std::move(buffer[b_iter++]);
                 --remainder;
             }
         }
@@ -168,6 +167,22 @@ private:
     inline void get_thresholds(float* lower, float* upper, int depth) const {
         *lower = 0.5f - 0.25f * ((float)depth / tree_height());
         *upper = 0.75f + 0.25f * ((float)depth / tree_height());
+    }
+
+    inline bool less_than(const T& a, const T& b) const {
+        return Comparator()(a, b);
+    }
+
+    inline bool less_than_equal(const T& a, const T& b) const {
+        return less_than(a, b) || equal(a, b);
+    }
+
+    inline bool bigger_than(const T& a, const T& b) const {
+        return less_than(b, a);
+    }
+
+    inline bool equal(const T& a, const T& b) const {
+        return !less_than(a, b) && !bigger_than(a, b);
     }
 };
 
