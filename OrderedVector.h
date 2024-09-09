@@ -25,10 +25,17 @@ public:
         }
 
         if (items[i]) {
-            if (greater(t, items[i].value()))
-                shifted_left(i) || (items[++i] && shifted_right(i));
-            else
-                shifted_right(i) || (items[--i] && shifted_left(i));
+            if (greater(t, items[i].value()) && i + 1 < items.size())
+                ++i;
+
+            if (items[i]) {
+                if (!shifted_right(i)) {
+                    if (i - 1 > 0 && less(t, items[i].value()))
+                        --i;
+
+                    shifted_left(i);
+                }
+            }
         }
         items[i] = t;
     }
