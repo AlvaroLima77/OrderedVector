@@ -2,7 +2,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "OrderedVector.h"
+#include "packed_memory_array.h"
 
 std::vector<std::string> split_on_space(const std::string& line);
 
@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    OrderedVector<int> v;
+    packed_memory_array<int> pma;
     std::string line;
     int line_count = 0;
     while (std::getline(input_file, line)) {
@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
             }
 
             int value = std::stoi(tokens[1]);
-            v.push(value);
+            pma.push(value);
         } else if (tokens.front() == "REM") {
             if (tokens.size() != 2) {
                 std::cerr << "Error on REM" << std::endl;
@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
             }
 
             int value = std::stoi(tokens[1]);
-            v.remove(value);
+            pma.remove(value);
         } else if (tokens.front() == "SUC") {
             if (tokens.size() != 2) {
                 std::cerr << "Error on SUC" << std::endl;
@@ -61,14 +61,14 @@ int main(int argc, char* argv[]) {
             }
 
             int value = std::stoi(tokens[1]);
-            output_file << v.successor(value) << std::endl;
+            output_file << pma.successor(value) << std::endl;
         } else if (tokens.front() == "IMP") {
             if (tokens.size() != 1) {
                 std::cerr << "Error on IMP" << std::endl;
                 std::cerr << "line " << line_count << ": " << line << std::endl;
                 return EXIT_FAILURE;
             }
-            for (const auto& item : v) {
+            for (const auto& item : pma) {
                 if (item) 
                     output_file << item.value() << ' ';
             }

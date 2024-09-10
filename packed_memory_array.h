@@ -6,15 +6,15 @@
 #include <ostream>
 #include <vector>
 
-template <typename T, typename Comparator = std::less<T>, uint32_t leaf_size = 8>
-class OrderedVector {
+template <typename T, typename Comparator = std::less<T>, uint32_t chunk_size = 8>
+class packed_memory_array {
 public:
-    inline OrderedVector() : items(leaf_size * 2) {}
+    inline packed_memory_array() : items(chunk_size * 2) {}
 
     inline void push(const T& t) {
         int i = index_of(t);
-        int block_begin = (i / leaf_size) * leaf_size;
-        int block_end = block_begin + leaf_size;
+        int block_begin = (i / chunk_size) * chunk_size;
+        int block_end = block_begin + chunk_size;
         int count = count_items(block_begin, block_end) + 1;
         float lower, upper;
         get_thresholds(&lower, &upper, tree_height());
@@ -24,20 +24,7 @@ public:
             i = index_of(t);
         }
 
-        if (items[i]) {
-            if (greater(t, items[i].value()) && i + 1 < items.size())
-                ++i;
-
-            if (items[i]) {
-                if (!shifted_right(i)) {
-                    if (i - 1 > 0 && less(t, items[i].value()))
-                        --i;
-
-                    shifted_left(i);
-                }
-            }
-        }
-        items[i] = t;
+        insert(t, i);
     }
 
     inline void remove(const T& t) {
@@ -46,8 +33,8 @@ public:
             return;
 
         items[i].reset();
-        int block_begin = (i / leaf_size) * leaf_size;
-        int block_end = block_begin + leaf_size;
+        int block_begin = (i / chunk_size) * chunk_size;
+        int block_end = block_begin + chunk_size;
         int count = count_items(block_begin, block_end);
         float lower, upper;
         get_thresholds(&lower, &upper, tree_height());
@@ -119,7 +106,7 @@ private:
             auto buffer = get_items(0, items.size());
             if (density > upper)
                 items.resize(items.size() * 2);
-            else if (density < lower && items.size() > leaf_size * 2)
+            else if (density < lower && items.size() > chunk_size * 2)
                 items.resize(items.size() / 2);
 
             if (!buffer.empty())
@@ -158,7 +145,7 @@ private:
         return buffer;
     }
 
-    inline int tree_height() const { return std::log2(items.size() / leaf_size); }
+    inline int tree_height() const { return std::log2(items.size() / chunk_size); }
 
     inline int count_items(int begin, int end) const {
         return std::count_if(items.begin() + begin, items.begin() + end, [](auto&& item) {
@@ -166,28 +153,57 @@ private:
         });
     }
 
-    inline bool shifted_right(const int index) {
-        int i;
-        for (i = index; i < items.size() && items[i]; ++i);
-        if (i >= items.size())
-            return false;
-
-        for (; i > index; --i)
-            std::swap(items[i], items[i - 1]);
-
-        return true;
+    inline void shift_right(const int from, int to) {
+        for (; to > from; --to)
+            std::swap(items[to], items[to - 1]);
     }
 
-    inline bool shifted_left(const int index) {
-        int i;
-        for (i = index; i >= 0 && items[i]; --i);
-        if (i < 0)
-            return false;
+    inline void shift_left(const int from, int till) {
+        for (; till < from; ++till)
+            std::swap(items[till], items[till + 1]);
+    }
 
-        for (; i < index; ++i)
-            std::swap(items[i], items[i + 1]);
+    inline void insert(const T& t, int i) {
+        if (items[i]) {
+            if (greater(t, items[i].value()) && i + 1 < items.size() && !items[i + 1]) {
+                i++;
+            } else if (less(t, items[i].value()) && i - 1 >= 0 && !items[i - 1]) {
+                i--;
+            } else {
+                bool on_right;
+                int closest_gap_index;
+                closest_gap(&closest_gap_index, &on_right, i);
+                if ((on_right && greater(t, items[i].value())) ||
+                    (!on_right && less(t, items[i].value())))
+                {
+                    i += on_right ? 1 : -1;
+                }
 
-        return true;
+                if (on_right)
+                    shift_right(i, closest_gap_index);
+                else
+                    shift_left(i, closest_gap_index);
+            }
+        }
+        items[i] = t;
+    }
+
+    inline void closest_gap(int* closest_gap, bool* on_right, const int index) const {
+        int closest_right = index + 1;
+        for (; closest_right < items.size() && items[closest_right]; ++closest_right);
+        int closest_left = index - 1;
+        for (; closest_left >= 0 && items[closest_left]; --closest_left);
+
+        if (closest_left < 0) {
+            *closest_gap = closest_right;
+            *on_right = true;
+        } else if (closest_right >= items.size()) {
+            *closest_gap = closest_left;
+            *on_right = false;
+        } else {
+            *on_right = closest_right - index <= index - closest_left;
+            *closest_gap = *on_right ? closest_right : closest_left;
+        }
     }
 
     inline void get_thresholds(float* lower, float* upper, int depth) const {
