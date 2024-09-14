@@ -1,7 +1,5 @@
 # Manutenção de Arquivos Ordenados
 
-Este projeto implementa uma solução simples para a manutenção de arquivos ordenados, desenvolvido para a disciplina de Estruturas de Dados Avançadas (CK0126).
-
 ## Descrição
 
 O programa recebe dois arquivos como argumento: um arquivo de entrada contendo os comandos a serem executados e um arquivo de saída onde os resultados serão gravados.
