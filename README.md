@@ -7,8 +7,8 @@ Antes de executar o programa, é necessário criar dois arquivos: um para entrad
 
 ## Exemplo de uso (Linux com g++)
 ```
-    touch input.txt
-    touch output.txt
-    g++ file_handler.cpp -o file_handler
-    ./file_handler input.txt output.txt
+touch input.txt
+touch output.txt
+g++ file_handler.cpp -o file_handler
+./file_handler input.txt output.txt
 ```
