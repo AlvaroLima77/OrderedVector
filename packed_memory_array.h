@@ -25,15 +25,14 @@ public:
         }
 
         if (items[i]) {
-            bool on_right;
-            int closest_gap_index;
-            get_closest_gap(&closest_gap_index, &on_right, i);
-            if (on_right && item > items[i])
+            int closest_gap = get_closest_gap(i);
+            bool is_on_right = closest_gap > i;
+            if (is_on_right && item > items[i])
                 i++;
-            else if (!on_right && item < items[i])
+            else if (!is_on_right && item < items[i])
                 i--;
 
-            on_right ? shift_right(i, closest_gap_index) : shift_left(i, closest_gap_index);
+            is_on_right ? shift_right(i, closest_gap) : shift_left(i, closest_gap);
         }
         items[i] = item;
     }
@@ -173,18 +172,12 @@ private:
             std::swap(items[till], items[till + 1]);
     }
 
-    inline void get_closest_gap(int* closest_gap, bool* on_right, const int index) const {
+    inline int get_closest_gap(const int index) const {
         for (int offset = 1; ; offset++) {
-            if (index + offset < items.size() && !items[index + offset]) {
-                *closest_gap = index + offset;
-                *on_right = true;
-                return;
-            }
-            if (index - offset >= 0 && !items[index - offset]) {
-                *closest_gap = index - offset;
-                *on_right = false;
-                return;
-            }
+            if (index + offset < items.size() && !items[index + offset])
+                return index + offset;
+            if (index - offset >= 0 && !items[index - offset])
+                return index - offset;
         }
     }
 
