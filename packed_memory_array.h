@@ -8,6 +8,7 @@
 template <typename ItemType, typename Comparator = std::less<ItemType>, uint32_t chunk_size = 8>
 class packed_memory_array {
 public:
+    static_assert(chunk_size > 0, "Chunk size must be greater than 0");
     inline packed_memory_array() : items(chunk_size * 2) {}
 
     inline void push(const ItemType& item) {
@@ -23,7 +24,18 @@ public:
             i = index_of(item);
         }
 
-        insert_item_on(item, i);
+        if (items[i]) {
+            bool on_right;
+            int closest_gap_index;
+            get_closest_gap(&closest_gap_index, &on_right, i);
+            if (on_right && item > items[i])
+                i++;
+            else if (!on_right && item < items[i])
+                i--;
+
+            on_right ? shift_right(i, closest_gap_index) : shift_left(i, closest_gap_index);
+        }
+        items[i] = item;
     }
 
     inline void remove(const ItemType& target) {
@@ -97,7 +109,6 @@ private:
             int parent_end = is_left_child ? sibling_end : end;
             auto buffer = get_items(parent_begin, parent_end);
             rearrange_items(parent_begin, parent_end, buffer);
-
             return;
         }
 
@@ -129,9 +140,14 @@ private:
         }
     }
 
+    inline void get_thresholds(float* lower, float* upper, int depth) const {
+        *lower = 0.5f - 0.25f * ((float)depth / tree_height());
+        *upper = 0.75f + 0.25f * ((float)depth / tree_height());
+    }
+    inline int tree_height() const { return std::log2(items.size() / chunk_size); }
+
     inline std::vector<ItemType> get_items(int begin, int end) {
         std::vector<ItemType> buffer;
-        buffer.reserve(end - begin);
         for (int i = begin; i < end; ++i) {
             if (items[i]) {
                 buffer.push_back(std::move(items[i].value()));
@@ -141,8 +157,6 @@ private:
 
         return buffer;
     }
-
-    inline int tree_height() const { return std::log2(items.size() / chunk_size); }
 
     inline int count_items(int begin, int end) const {
         return std::count_if(items.begin() + begin, items.begin() + end, [](auto&& item) {
@@ -154,35 +168,9 @@ private:
         for (; to > from; --to)
             std::swap(items[to], items[to - 1]);
     }
-
     inline void shift_left(const int from, int till) {
         for (; till < from; ++till)
             std::swap(items[till], items[till + 1]);
-    }
-
-    inline void insert_item_on(const ItemType& item, int i) {
-        if (items[i]) {
-            bool on_right;
-            int closest_gap_index;
-            get_closest_gap(&closest_gap_index, &on_right, i);
-            int offset = std::abs(i - closest_gap_index);
-            if (offset == 1) {
-                if (on_right && item > items[i]) {
-                    items[i + 1] = item;
-                    return;
-                } else if (!on_right && item < items[i]) {
-                    items[i - 1] = item;
-                    return;
-                }
-            }
-            if (on_right && item > items[i])
-                i++;
-            else if (!on_right && item < items[i])
-                i--;
-
-            on_right ? shift_right(i, closest_gap_index) : shift_left(i, closest_gap_index);
-        }
-        items[i] = item;
     }
 
     inline void get_closest_gap(int* closest_gap, bool* on_right, const int index) const {
@@ -198,11 +186,6 @@ private:
                 return;
             }
         }
-    }
-
-    inline void get_thresholds(float* lower, float* upper, int depth) const {
-        *lower = 0.5f - 0.25f * ((float)depth / tree_height());
-        *upper = 0.75f + 0.25f * ((float)depth / tree_height());
     }
 
     friend inline bool operator<(const std::optional<ItemType>& left, const std::optional<ItemType>& right) {
